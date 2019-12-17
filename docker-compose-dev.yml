@@ -1,0 +1,104 @@
+version: "3.4"
+
+services:
+  # users service
+  users:
+    container_name: users
+    build:
+      context: ./services/users
+      dockerfile: Dockerfile-dev
+    volumes:
+      - './services/users:/usr/src/app'
+    ports:
+      - 5000:5000
+    environment:
+      - FLASK_DEBUG=1
+      - SECRET_KEY=my_precious
+      - APP_SETTINGS=project.config.DevelopmentConfig
+      - DATABASE_URL=postgres://postgres:postgres@users-db:5432/users_dev
+      - DATABASE_TEST_URL=postgres://postgres:postgres@users-db:5432/users_test
+    depends_on:
+      - users-db
+    links:
+      - users-db
+
+  # pokemon service
+  pokemon:
+    container_name: pokemon
+    build:
+      context: ./services/pokemon
+      dockerfile: Dockerfile-dev
+    volumes:
+      - './services/pokemon:/usr/src/app'
+    ports:
+      - 5001:5000
+    environment:
+      - FLASK_DEBUG=1
+      - SECRET_KEY=my_precious
+      - USERS_SERVICE_URL=http://users:5000
+      - APP_SETTINGS=project.config.DevelopmentConfig
+      - DATABASE_URL=postgres://postgres:postgres@pokemon-db:5432/pokemon_dev
+      - DATABASE_TEST_URL=postgres://postgres:postgres@pokemon-db:5432/pokemon_test
+    depends_on:
+      - users
+      - pokemon-db
+    links:
+      - users
+      - pokemon-db
+
+  # users database service
+  users-db:
+    container_name: users-db
+    build:
+      context: ./services/users/project/db
+      dockerfile: Dockerfile-dev
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+
+  # pokemon database service
+  pokemon-db:
+    container_name: pokemmon-db
+    build:
+      context: ./services/pokemon/project/db
+      dockerfile: Dockerfile-dev
+    ports:
+      - 5433:5432
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+
+  # frontend web application
+  frontend:
+    container_name: frontend
+    build:
+      context: ./services/frontend
+      dockerfile: Dockerfile-dev
+    volumes:
+      - './services/frontend:/usr/src/app'
+      - '/usr/src/app/node_modules'
+    ports:
+      - 3007:3007
+    environment:
+      - NODE_ENV=development
+      - REACT_APP_USERS_SERVICES_URL=${REACT_APP_USERS_SERVICE_URL}
+    depends_on:
+      - users
+    links:
+      - users
+
+  # nginx for serving
+  nginx:
+    container_name: nginx
+    build:
+      context: ./services/nginx
+      dockerfile: Dockerfile-dev
+    restart: always
+    ports:
+      - 80:80
+    depends_on:
+      - users
+      - frontend
+      - pokemon
